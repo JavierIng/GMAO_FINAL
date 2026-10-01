@@ -18,8 +18,16 @@ from datetime import date, datetime, timedelta
 
 import pandas as pd
 import streamlit as st
-from fpdf import FPDF
-from streamlit_calendar import calendar
+
+# Dependencias opcionales: si faltan, la app arranca igualmente y avisa en pantalla.
+try:
+    from fpdf import FPDF
+except ImportError:
+    FPDF = None
+try:
+    from streamlit_calendar import calendar
+except ImportError:
+    calendar = None
 
 # ==========================================
 # CONFIGURACIÓN Y CONSTANTES
@@ -322,6 +330,8 @@ def generar_albaran(id_ot: int) -> bytes:
         ).fetchone()
     if o is None:
         raise ValueError("La orden no existe o no está completada.")
+    if FPDF is None:
+        raise RuntimeError("El paquete fpdf2 no está instalado en el servidor.")
 
     pdf = FPDF()
     pdf.add_page()
@@ -439,6 +449,10 @@ def vista_calendario(usuario=None):
         }
         for _, r in df.iterrows()
     ]
+    if calendar is None:
+        st.warning("streamlit-calendar no está instalado. Se muestra una tabla en su lugar.")
+        st.dataframe(pd.DataFrame(eventos), hide_index=True, **STRETCH)
+        return
     opciones = {"initialView": "timeGridWeek", "slotMinTime": "07:00:00", "slotMaxTime": "19:00:00"}
     # La key incluye el nº de eventos para forzar el refresco del componente.
     calendar(events=eventos, options=opciones, key=f"cal_{usuario or 'global'}_{len(eventos)}")
@@ -473,7 +487,7 @@ def vista_historial(usuario=None):
             pdf_bytes = generar_albaran(int(r["id_ot"]))
         except Exception as e:  # p. ej. conflicto fpdf / fpdf2
             c2.error("Error PDF")
-            st.caption(f"⚠️ {type(e).__name__}: {e}. Ejecuta: pip uninstall -y fpdf fpdf2 && pip install fpdf2")
+            st.caption(f"⚠️ {type(e).__name__}: {e}")
             continue
         c2.download_button(
             "📄 PDF",
